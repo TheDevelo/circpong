@@ -1,28 +1,32 @@
 pico-8 cartridge // http://www.pico-8.com
 version 16
 __lua__
-balls={}
 ballsize=4
 circsize=40
-speed=2.5
+ball_speed=1.25
+cpu_mult=1.1
 paddles={0.5,0}
-dpaddle=0.0125
-score={0, 0}
+paddle_speed=0.00625
+paddle_accel=0.0015
 
 function new_ball(balldir)
  ball={}
+ ball.hold=0
  ball.x=0
  ball.y=0
- ball.dx=cos(balldir)*speed
- ball.dy=sin(balldir)*speed
+ ball.dx=cos(balldir)*ball_speed
+ ball.dy=sin(balldir)*ball_speed
  return ball
 end
  
 function _init()
-  add(balls, new_ball(paddles[0]))
+ balls={}
+ add(balls, new_ball(paddles[1]))
+ score={0, 0}
+ dpaddles={0,0}
 end
 
-function _update()
+function _update60()
  for _, ball in pairs(balls) do
   ball.x+=ball.dx
   ball.y+=ball.dy
@@ -46,14 +50,19 @@ function _update()
    add(balls, ball_new)
    score[(near_pad)%2+1]+=1
   end
-  for _, paddle in pairs(paddles) do
+  for i, paddle in pairs(paddles) do
    xdiff=ball.x-cos(paddle)*(circsize+1)
    ydiff=ball.y-sin(paddle)*(circsize+1)
    dist=sqrt(xdiff*xdiff+ydiff*ydiff)
    if dist<=ballsize*2 then
-    sfx(0, 0)
-    ball.dx=xdiff*speed/dist
-    ball.dy=ydiff*speed/dist
+    if ball.hold>2 then
+     sfx(0)
+    end
+    ball.hold=0
+    ball.dx=xdiff*ball_speed/dist
+    ball.dy=ydiff*ball_speed/dist
+   else
+    ball.hold+=1
    end
   end
  end
@@ -73,22 +82,28 @@ function _update()
  end
  if (paddles[2]-angle)%1 > 0.5 and near_pad == 2 then
   --faster for harder
-  paddles[2]+=dpaddle*1.1
+  paddles[2]+=paddle_speed*cpu_mult
  elseif (paddles[2]-angle)%1 < 0.5 and near_pad == 2 then
-  paddles[2]-=dpaddle*1.1
+  paddles[2]-=paddle_speed*cpu_mult
  end
  
  if btn(⬅️) then
-  paddles[1]+=dpaddle
+  dpaddles[1]=min(paddle_speed,dpaddles[1]+paddle_accel)
+ elseif btn(➡️) then
+  dpaddles[1]=max(-paddle_speed,dpaddles[1]-paddle_accel)
+ else
+  if dpaddles[1]<0 then
+   dpaddles[1]=min(0,dpaddles[1]+paddle_accel)
+  else
+   dpaddles[1]=max(0,dpaddles[1]-paddle_accel)
+  end
  end
- if btn(➡️) then
-  paddles[1]-=dpaddle
- end
+ paddles[1]+=dpaddles[1]
  if btn(🅾️) then
-  paddles[2]+=dpaddle
+  paddles[2]+=paddle_speed
  end
  if btn(❎) then
-  paddles[2]-=dpaddle
+  paddles[2]-=paddle_speed
  end
  paddles[1]=paddles[1]%1
  paddles[2]=paddles[2]%1
@@ -143,7 +158,7 @@ function _draw()
  for _, ball in pairs(balls) do
   circfill(ball.x+64, ball.y+64, ballsize, 7)
  end
- circ(64, 64, circsize, 12)
+ circ(64, 64, circsize,12)
  pad_angs = calc_pad_angs(paddles)
  arc(64, 64, circsize, pad_angs[1], pad_angs[2], 8)
  circfill(cos(paddles[1])*circsize+64,sin(paddles[1])*circsize+64,ballsize,12)
@@ -163,4 +178,4 @@ cccc8888000000000000000000000000000000000000000000000000000000000000000000000000
 0c888880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00088000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
-000100002707027060270502704027030270302702027020270202701027010270102701000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000100002705027040270302703027030275202752027520275202751027510275102751000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
