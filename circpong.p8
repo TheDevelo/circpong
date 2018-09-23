@@ -4,7 +4,10 @@ __lua__
 ballsize=4
 circsize=40
 ball_speed=1.25
-cpu_mult=1.1
+--faster for harder
+cpu_mult=1
+cpu_zone=0.02
+cpu_react_frames=18
 paddles={0.5,0}
 paddle_speed=0.00625
 paddle_accel=0.0015
@@ -24,25 +27,76 @@ function _init()
  add(balls, new_ball(paddles[1]))
  score={0, 0}
  dpaddles={0,0}
+ cpu_react=0
+end
+
+function future_ball_angle(x, y, dx, dy) 
+ -- finds future angle by calc future x and y of ball
+ -- does intersection of circle formula and ball line
+ -- looks like magic but you can rederive it yourself
+ 
+ -- swaps x and y if line is too vertical
+ -- prevents integer overflows from happening
+ local flipped = false
+ if abs(dy/dx) > 2 then
+  x, y = y, x
+  dx, dy = dy, dx
+  flipped = true
+ end
+ 
+ -- s for slope
+ local s = dy/dx
+ -- a, b, and c for quadratic formula terms
+ local a = s^2 + 1
+ local b = 2*s*(y-s*x)
+ local c = (y-s*x)^2 - circsize^2
+ -- quadratic formula to find future x value of ball
+ local discriminant = sqrt(b^2-4*a*c)
+ local fut_x1 = (-b+discriminant)/2/a
+ local fut_x2 = (-b-discriminant)/2/a 
+ --calculate y values for both possible x vals
+ local fut_y1 = y+s*(fut_x1-x)
+ local fut_y2 = y+s*(fut_x2-x)
+ 
+ -- find which future point is outside circ when moved in ball dir
+ local dist1 = (fut_x1+dx)^2+(fut_y1+dy)^2
+ local dist2 = (fut_x2+dx)^2+(fut_y2+dy)^2
+ if dist1>dist2 then
+  fut_x = fut_x1
+  fut_y = fut_y1
+ else
+  fut_x = fut_x2
+  fut_y = fut_y2
+ end
+ 
+ if flipped then
+  fut_x, fut_y = fut_y, fut_x
+ end
+ 
+ return atan2(fut_x, fut_y)
+end
+
+function nearest_pad(angle)
+ local pad_angs=calc_pad_angs(paddles)
+ local near_pad=1
+ if pad_angs[1]>pad_angs[2] then
+  if angle>pad_angs[1] or angle<pad_angs[2] then
+   near_pad=2
+  end
+ else
+  if angle>pad_angs[1] and angle<pad_angs[2] then
+   near_pad=2
+  end
+ end
+ return near_pad
 end
 
 function _update60()
  for _, ball in pairs(balls) do
   ball.x+=ball.dx
   ball.y+=ball.dy
-  if ball.x*ball.x+ball.y*ball.y >= circsize*circsize then
-   angle=atan2(ball.x, ball.y)
-   pad_angs=calc_pad_angs(paddles)
-   near_pad=1
-   if pad_angs[1]>pad_angs[2] then
-    if angle>pad_angs[1] or angle<pad_angs[2] then
-     near_pad=2
-    end
-   else
-    if angle>pad_angs[1] and angle<pad_angs[2] then
-     near_pad=2
-    end
-   end
+  if ball.x^2+ball.y^2 >= circsize^2 then
+   near_pad = nearest_pad(atan2(ball.x, ball.y))
    del(balls, ball)
    ball_new=new_ball(paddles[near_pad]+0.5)
    ball_new.x=cos(paddles[near_pad])*(circsize-ballsize*2)
@@ -53,7 +107,7 @@ function _update60()
   for i, paddle in pairs(paddles) do
    xdiff=ball.x-cos(paddle)*(circsize+1)
    ydiff=ball.y-sin(paddle)*(circsize+1)
-   dist=sqrt(xdiff*xdiff+ydiff*ydiff)
+   dist=sqrt(xdiff^2+ydiff^2)
    if dist<=ballsize*2 then
     if ball.hold>2 then
      sfx(0)
@@ -68,23 +122,25 @@ function _update60()
  end
  
  -- cpu test
- angle=atan2(ball.x, ball.y)
- pad_angs=calc_pad_angs(paddles)
- near_pad=1
- if pad_angs[1]>pad_angs[2] then
-  if angle>pad_angs[1] or angle<pad_angs[2] then
-   near_pad=2
-  end
- else
-  if angle>pad_angs[1] and angle<pad_angs[2] then
-   near_pad=2
-  end
+ angle=future_ball_angle(balls[1].x, balls[1].y, balls[1].dx, balls[1].dy)
+ near_pad = nearest_pad(angle)
+ pad_diff = (paddles[2]-angle)%1
+ moved = false
+ if near_pad == 1 then
+  cpu_react = 0
+ elseif cpu_react < cpu_react_frames then
+  cpu_react += 1 
+ elseif pad_diff > 0.5 and pad_diff < 1-cpu_zone then
+  dpaddles[2]=min(paddle_speed*cpu_mult,dpaddles[2]+paddle_accel)
+  moved = true
+ elseif pad_diff < 0.5 and pad_diff > cpu_zone then
+  dpaddles[2]=max(-paddle_speed*cpu_mult,dpaddles[2]-paddle_accel)
+  moved = true
  end
- if (paddles[2]-angle)%1 > 0.5 and near_pad == 2 then
-  --faster for harder
-  paddles[2]+=paddle_speed*cpu_mult
- elseif (paddles[2]-angle)%1 < 0.5 and near_pad == 2 then
-  paddles[2]-=paddle_speed*cpu_mult
+ if dpaddles[2]<0 and not moved then
+  dpaddles[2]=min(0,dpaddles[2]+paddle_accel)
+ elseif not moved then
+  dpaddles[2]=max(0,dpaddles[2]-paddle_accel)
  end
  
  if btn(⬅️) then
@@ -105,6 +161,8 @@ function _update60()
  if btn(❎) then
   paddles[2]-=paddle_speed
  end
+ paddles[2]+=dpaddles[2]
+ 
  paddles[1]=paddles[1]%1
  paddles[2]=paddles[2]%1
 end
