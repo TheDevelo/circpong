@@ -5,8 +5,8 @@ ballsize=4
 circsize=40
 ball_speed=1.25
 --faster for harder
-cpu_mult=1
-cpu_zone=0.02
+cpu_mult=0.85
+cpu_zone=0.025
 cpu_react_frames=18
 paddles={0.5,0}
 paddle_speed=0.00625
