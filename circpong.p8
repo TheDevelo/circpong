@@ -5,12 +5,12 @@ ballsize=4
 circsize=40
 ball_speed=1.25
 --faster for harder
-cpu_mult=0.85
-cpu_zone=0.025
-cpu_react_frames=18
+cpu_mult=0.9
+cpu_zone=0.015
+cpu_react_frames=20
 paddles={0.5,0}
 paddle_speed=0.00625
-paddle_accel=0.0015
+paddle_accel=0.001
 
 function new_ball(balldir)
  ball={}
